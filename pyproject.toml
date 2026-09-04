@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vcc2026-h1-benchmark"
+version = "0.1.0"
+description = "A lightweight VCC 2026 evaluation benchmark on the public H1 training data"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "anndata>=0.10",
+  "cell-eval2==0.16.0",
+  "h5py>=3.10",
+  "httpx>=0.27",
+  "numpy>=1.26",
+  "pandas>=2.0",
+  "pdex==0.3.0",
+  "platformdirs>=4",
+  "polars>=1.0",
+  "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "ruff>=0.12"]
+
+[project.scripts]
+vcc-h1 = "vcc_h1_eval.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vcc_h1_eval"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"assets/benchmark-v1.json" = "vcc_h1_eval/benchmark-v1.json"
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

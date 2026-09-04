@@ -1,0 +1,28 @@
+{
+  "asset": {
+    "filename": "vcc2026-h1-benchmark-v1.zip",
+    "sha256": "69d85faff91516d558c553711f494176d90b49b301ebd3a89695ca78f87a12fa",
+    "url": "https://github.com/forrestsheldon/vcc2026-h1-benchmark/releases/download/v0.1.0/vcc2026-h1-benchmark-v1.zip"
+  },
+  "benchmark_version": "v1",
+  "sources": {
+    "genes": {
+      "bytes": 116023,
+      "generation": "1765906114880540",
+      "sha256": "e29ff3512b4c2440759bfb2a34577049b2f49df786b3e19c2a91b565de47b38e",
+      "url": "https://storage.googleapis.com/arc-institute-virtual-cell-atlas/virtual-cell-challenge/2025/gene_names.csv"
+    },
+    "h1": {
+      "bytes": 15482497461,
+      "generation": "1765904883947296",
+      "sha256": "a09977104fefb622368ca74b50c9d3c1e891733e6c83db07acfca49b0219c02b",
+      "url": "https://storage.googleapis.com/arc-institute-virtual-cell-atlas/virtual-cell-challenge/2025/train/adata_Training.h5ad"
+    },
+    "target_counts": {
+      "bytes": 2824,
+      "generation": "1765906581937013",
+      "sha256": "633d202be221418bdbac16efd8cb169666de0ef6469a4e9bfdfb64666ea81a89",
+      "url": "https://storage.googleapis.com/arc-institute-virtual-cell-atlas/virtual-cell-challenge/2025/train/pert_counts_Training.csv"
+    }
+  }
+}
