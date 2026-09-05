@@ -15,7 +15,7 @@ non-targeting cells. Scoring is pinned to `cell-eval2==0.16.0`, source commit
 Install the tagged GitHub release:
 
 ```bash
-uv tool install git+https://github.com/forrestsheldon/vcc2026-h1-benchmark.git@v0.1.0
+uv tool install git+https://github.com/forrestsheldon/vcc2026-h1-benchmark.git@v0.2.0
 ```
 
 Prepare the benchmark once, then validate and score a prediction:
@@ -82,6 +82,26 @@ vcc-h1 score-control-baseline --output control-baseline/
 
 Its expected `avg_score` is approximately `-0.045230687652238`. This is distinct
 from the generic-response baseline that defines zero on the score scale.
+
+Compare per-perturbation metric profiles from one or more completed scores with:
+
+```bash
+vcc-h1 plot control=control-baseline/ model=results/ \
+  --targets TMSB4X PRCP HIRA \
+  --output perturbation-profiles.png
+```
+
+Omit `--targets` to show the complete panel. Perturbations are ordered by their
+number of significant genes in the frozen 400-cell reference DE table. The six
+scored metrics are drawn as aligned curves, and a companion CSV records each raw
+per-target value and its contribution to the corresponding aggregate. Plotting
+uses only compact score and reference artifacts; it does not load H1 counts or
+repeat DE.
+
+![Per-perturbation metric profiles for the unchanged-control and control-plus-global-shift baselines](docs/baseline-metric-profiles.png)
+
+*Example: unchanged controls versus controls plus the global H1 perturbation
+shift, with all 126 perturbations ordered by reference DE-gene count.*
 
 ## Relationship to the Challenge
 

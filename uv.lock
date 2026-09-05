@@ -1435,7 +1435,7 @@ wheels = [
 
 [[package]]
 name = "vcc2026-h1-benchmark"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "anndata", version = "0.12.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -1443,6 +1443,7 @@ dependencies = [
     { name = "cell-eval2" },
     { name = "h5py" },
     { name = "httpx" },
+    { name = "matplotlib" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -1466,6 +1467,7 @@ requires-dist = [
     { name = "cell-eval2", specifier = "==0.16.0" },
     { name = "h5py", specifier = ">=3.10" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pdex", specifier = "==0.3.0" },

@@ -68,6 +68,16 @@ def parse_args(argv=None) -> argparse.Namespace:
     control.add_argument("--gene-chunk", type=int, default=512)
     control.add_argument("--de-threads", type=int, default=4)
     _data_argument(control)
+
+    plot = commands.add_parser("plot")
+    plot.add_argument(
+        "results",
+        nargs="+",
+        help="scoring result directories, optionally written as LABEL=PATH",
+    )
+    plot.add_argument("--targets", nargs="+")
+    plot.add_argument("--output", type=Path, required=True)
+    _data_argument(plot)
     return parser.parse_args(argv)
 
 
@@ -104,12 +114,26 @@ def run(args: argparse.Namespace) -> None:
 
         check(paths)
         score(_score_args(args, paths))
-    else:
+    elif args.command == "score-control-baseline":
         from .artifacts import check
         from .scorer import score_control_baseline
 
         check(paths)
         score_control_baseline(_score_args(args, paths))
+    else:
+        from .artifacts import check
+        from .plot import parse_results, plot_metric_profiles, reference_de_path
+
+        check(paths)
+        table = plot_metric_profiles(
+            parse_results(args.results),
+            paths.reference_cells,
+            reference_de_path(paths.benchmark_dir),
+            args.output,
+            args.targets,
+        )
+        print(f"Wrote {args.output} and {args.output.with_suffix('.csv')}")
+        print(f"Plotted {table['target_gene'].nunique()} perturbations")
 
 
 def main(argv=None) -> None:

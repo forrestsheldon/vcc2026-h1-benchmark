@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vcc2026-h1-benchmark"
-version = "0.1.0"
+version = "0.2.0"
 description = "A lightweight VCC 2026 evaluation benchmark on the public H1 training data"
 readme = "README.md"
 license = "MIT"
@@ -14,6 +14,7 @@ dependencies = [
   "cell-eval2==0.16.0",
   "h5py>=3.10",
   "httpx>=0.27",
+  "matplotlib>=3.8",
   "numpy>=1.26",
   "pandas>=2.0",
   "pdex==0.3.0",
