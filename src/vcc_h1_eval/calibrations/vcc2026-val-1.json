@@ -1,0 +1,64 @@
+{
+ "name": "vcc2026-val-1",
+ "panel": "VCC 2026 validation panel vcc2026-val-1 (anchor set vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4)",
+ "method": "Each baseline b solves score_one(raw_control, b, policy with the H1 replicate anchor) = the panel's score for the control-resampling submission. raw_control is this benchmark's unchanged-control aggregate; the anchor is this benchmark's split-half replicate. A clamped control score (MSE) cannot identify b, so that metric keeps the H1 baseline.",
+ "reference_submission": {
+  "entry": "Td8NrsH2aoBlrcqxbeDc",
+  "description": "construct-balanced control resampling, 400 cells per target-context, seed 0",
+  "scores": {
+   "pds_cosine": -0.004951375760924769,
+   "expr_mse_unbiased_capped_norm": 0.0,
+   "de_wilcoxon_lfc_nmae": -0.005313183600212712,
+   "de_wilcoxon_direction_fidelity_yield_raw": -1.7214296946257555,
+   "de_wilcoxon_direction_reach_raw": -0.007889270403560343,
+   "de_wilcoxon_sig_jaccard": -0.08257457904469546
+  }
+ },
+ "assumptions": [
+  "resampled controls have the same raw metric values on the panel as on H1",
+  "the panel's replicate anchors are close to H1's",
+  "H1 raw values stand in for the panel's raw values when rescoring"
+ ],
+ "baselines": {
+  "pds_cosine": {
+   "baseline": 0.4877606610758203,
+   "inferred": true
+  },
+  "expr_mse_unbiased_capped_norm": {
+   "baseline": 0.9679450509009423,
+   "inferred": false
+  },
+  "de_wilcoxon_lfc_nmae": {
+   "baseline": 1.0014971332893385,
+   "inferred": true
+  },
+  "de_wilcoxon_direction_fidelity_yield_raw": {
+   "baseline": 0.5487806989793558,
+   "inferred": true
+  },
+  "de_wilcoxon_direction_reach_raw": {
+   "baseline": 0.03464144398644871,
+   "inferred": true
+  },
+  "de_wilcoxon_sig_jaccard": {
+   "baseline": 0.032670955946388476,
+   "inferred": true
+  }
+ },
+ "h1_baselines": {
+  "pds_cosine": 0.506793650793651,
+  "expr_mse_unbiased_capped_norm": 0.9679450509009423,
+  "de_wilcoxon_lfc_nmae": 0.9574776944645199,
+  "de_wilcoxon_direction_fidelity_yield_raw": 0.06695441194874018,
+  "de_wilcoxon_direction_reach_raw": 0.0822309021498574,
+  "de_wilcoxon_sig_jaccard": 0.0021103594232287147
+ },
+ "h1_anchors": {
+  "pds_cosine": 0.9779936507936509,
+  "expr_mse_unbiased_capped_norm": 0.004154934689019054,
+  "de_wilcoxon_lfc_nmae": 0.3337499715409945,
+  "de_wilcoxon_direction_fidelity_yield_raw": 0.8675529260414636,
+  "de_wilcoxon_direction_reach_raw": 0.9845991819667391,
+  "de_wilcoxon_sig_jaccard": 0.4283112183474883
+ }
+}

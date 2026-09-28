@@ -115,6 +115,43 @@ repeat DE.
 *Example: unchanged controls versus controls plus the global H1 perturbation
 shift, with all 126 perturbations ordered by reference DE-gene count.*
 
+## Panel calibration
+
+Each scored metric is rescaled between a generic-response baseline `b` and a
+split-half replicate anchor, both computed on the panel being scored. H1's
+perturbations share unusually little response, so its baselines can sit far
+from another panel's: on the VCC 2026 validation panel, predicting no change
+scores −1.72 on DE direction fidelity, against −0.08 here.
+
+A calibration replaces each `b` with the value that reproduces a panel's score
+for the control-resampling submission, whose raw values are taken from this
+benchmark's unchanged-control run. The H1 anchor stands in for the panel's.
+Scores are recomputed with cell-eval2's `score_one` and each metric's catalog
+policy; with the benchmark's own baselines this reproduces `scores.csv` exactly.
+
+```bash
+vcc-h1 score prediction.h5ad --output results/ --calibration vcc2026-val-1
+vcc-h1 rescale results/ other-results/ --calibration vcc2026-val-1
+```
+
+Both write `scores_<calibration>.csv` next to `scores.csv`, with the harness and
+calibrated score for each metric. `vcc2026-val-1` ships with the package. For a
+new panel, submit the control-resampling baseline, save its scores as JSON (the
+`vcc status` short names are accepted), and run:
+
+```bash
+vcc-h1 score-control-baseline --output control-baseline/
+vcc-h1 calibrate --scores panel-scores.json --control-results control-baseline/ \
+  --name my-panel --output my-panel.json
+vcc-h1 rescale results/ --calibration my-panel.json
+```
+
+Calibrated scores are estimates, not the panel's scores: H1 raw values stand in
+for the panel's, the anchor is borrowed, and a metric whose control score is
+clamped (expression MSE) keeps the H1 baseline. On the 2026 validation panel,
+two transfer submissions scored 0.083 and −0.183; their H1 runs score 0.236 and
+0.097 natively and 0.108 and −0.165 calibrated.
+
 ## Relationship to the Challenge
 
 Use the official [`vcc-cli`](https://pypi.org/project/vcc-cli/) 0.2.0 or newer
