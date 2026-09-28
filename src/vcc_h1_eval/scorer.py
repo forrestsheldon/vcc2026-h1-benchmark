@@ -61,6 +61,21 @@ SCORED_METRICS = (
     "de_wilcoxon_direction_reach_raw",
     "de_wilcoxon_sig_jaccard",
 )
+FAST_METRICS = (
+    "pds_cosine",
+    "expr_mse_unbiased",
+    "expr_mse_unbiased_capped",
+    "expr_distance_unbiased",
+    "expr_real_mass_ratio",
+    "expr_mse_unbiased_capped_norm",
+)
+FAST_RAW_METRICS = tuple(
+    metric for metric in FAST_METRICS if metric != "expr_mse_unbiased_capped_norm"
+)
+FAST_SCORED_METRICS = (
+    "expr_mse_unbiased_capped_norm",
+    "pds_cosine",
+)
 CONTROL_BASELINE_SEED_NAMESPACE = "h1-control-baseline-v1"
 
 
@@ -680,6 +695,17 @@ def reference_artifacts(args):
     return args.reference_cache / moment_name, args.reference_cache / de_name
 
 
+def reference_moment_artifact(args) -> Path:
+    """Return the frozen pseudobulk moments without touching a DE artifact."""
+    manifest = json.loads(args.manifest.read_text())
+    files = manifest["artifacts"]["reference_cache_files"]
+    moment_name = next(name for name in files if name.endswith(".moments.npz"))
+    path = args.reference_cache / moment_name
+    if sha256(path) != files[moment_name]:
+        raise ValueError(f"reference cache checksum mismatch: {moment_name}")
+    return path
+
+
 def scoring_meta(args, config: EvalConfig) -> dict:
     bundle = json.loads((args.scale_bundle / "manifest.json").read_text())
     return {
@@ -810,6 +836,136 @@ def score_source(
     print(scaled)
 
 
+def score_source_fast(
+    args,
+    prediction: RowSource,
+    targets: list[str],
+    prediction_provenance: dict,
+) -> None:
+    """Score PDS and expression moments only; DE is intentionally unreachable."""
+    config = evaluation_config(cache_real=args.reference_cache)
+    moment_path = reference_moment_artifact(args)
+    results = compute_fast_metrics(prediction, targets, config, moment_path)
+
+    wide = aggregate_metrics_wide(results, metrics=list(FAST_METRICS))
+    mean = wide.filter(pl.col("statistic") == "mean")
+    count_frame = results.group_by("metric").agg(pl.len().alias("n_targets"))
+    counts = dict(zip(count_frame["metric"].to_list(), count_frame["n_targets"].to_list()))
+    aggregates = pl.DataFrame(
+        [
+            {
+                "metric": metric,
+                "aggregation": CATALOG[metric].agg,
+                "n_targets": int(counts.get(metric, N_TARGETS)),
+                "raw_value": float(mean[metric].item()),
+                "scored": metric in FAST_SCORED_METRICS,
+            }
+            for metric in FAST_METRICS
+        ]
+    )
+    run_meta = scoring_meta(args, config)
+    scaler_input = pad_fast_aggregate(
+        wide, pl.read_csv(args.scale_bundle / "baseline_agg.csv")
+    )
+    scaled = score_metrics(
+        scaler_input, real_bundle=args.scale_bundle, user_meta=run_meta
+    ).filter(pl.col("metric").is_in(FAST_SCORED_METRICS))
+    if "avg_score" in scaled["metric"].to_list():
+        raise RuntimeError("fast scoring must not publish a partial avg_score")
+
+    args.output.mkdir(parents=True, exist_ok=True)
+    per_target = _ordered_results(results, targets, list(FAST_RAW_METRICS))
+    paths = {
+        "per_target": args.output / "per_target.csv",
+        "aggregates": args.output / "aggregates.csv",
+        "scores": args.output / "scores.csv",
+    }
+    write_csv(paths["per_target"], per_target)
+    write_csv(paths["aggregates"], aggregates)
+    write_csv(paths["scores"], scaled)
+    manifest = {
+        "benchmark_manifest_sha256": sha256(args.manifest),
+        "mode": "fast",
+        "partial_avg_score_emitted": False,
+        "prediction": prediction_provenance,
+        "controls": {
+            "path": relative(args.controls),
+            "sha256": json.loads(args.controls_manifest.read_text())["artifact"][
+                "sha256"
+            ],
+        },
+        "scale_bundle": {
+            "path": relative(args.scale_bundle),
+            "manifest_sha256": sha256(args.scale_bundle / "manifest.json"),
+        },
+        "configuration_sha256": config_hash(public_config().to_dict()),
+        "driver": {
+            "name": "bounded-memory H1 fast scorer",
+            "de": False,
+            "scale_adapter": "unused DE columns copied from the frozen baseline only to satisfy the complete bundle schema; all DE rows and avg_score discarded",
+        },
+        "metrics": list(FAST_METRICS),
+        "scored_metrics": list(FAST_SCORED_METRICS),
+        "outputs": {
+            name: {"path": path.name, "sha256": sha256(path)}
+            for name, path in paths.items()
+        },
+        "packages": package_provenance(),
+    }
+    write_json(args.output / "manifest.json", manifest)
+    print(scaled)
+
+
+def compute_fast_metrics(
+    prediction: RowSource,
+    targets: list[str],
+    config: EvalConfig,
+    moment_path: Path,
+) -> pl.DataFrame:
+    """Compute exactly the non-DE metrics used by ``score-fast``."""
+    real_bulks, real_moments, _ = load_reference_statistics(moment_path, None)
+    pred_bulks, pred_moments = prediction_statistics(
+        prediction,
+        targets,
+        CONTROL,
+        real_bulks,
+        real_moments,
+        bulk_target_sum=config.bulk_target_sum,
+    )
+    rows = dispatch_anndata_metrics(
+        list(resolve_metrics(config.metrics, version=config.version)[0]),
+        pred_bulks,
+        real_bulks,
+        np.asarray(prediction.genes),
+        config,
+        comparator="bulk_lognorm",
+        pred_moments=pred_moments,
+        real_moments=real_moments,
+        driver="bounded-memory H1 fast scorer",
+    )
+    results = pl.DataFrame(
+        rows,
+        schema={"perturbation": pl.Utf8, "metric": pl.Utf8, "value": pl.Float64},
+    )
+    observed = set(results["metric"].unique().to_list())
+    if observed != set(FAST_RAW_METRICS):
+        raise RuntimeError(f"unexpected fast metric set: {sorted(observed)}")
+    return results
+
+
+def pad_fast_aggregate(fast: pl.DataFrame, baseline: pl.DataFrame) -> pl.DataFrame:
+    """Fill uncomputed columns from baseline for the full-schema scaling call only."""
+    if fast["statistic"].to_list() != baseline["statistic"].to_list():
+        raise ValueError("fast and baseline aggregate statistic rows differ")
+    missing = set(FAST_METRICS) - set(fast.columns)
+    if missing:
+        raise ValueError(f"fast aggregate is missing metrics: {sorted(missing)}")
+    result = baseline.clone()
+    for metric in FAST_METRICS:
+        result = result.with_columns(fast[metric].alias(metric))
+    return result
+
+
 def score(args) -> None:
     controls_data = open_controls(args)
     prediction = ad.read_h5ad(args.prediction, backed="r")
@@ -839,6 +995,29 @@ def score(args) -> None:
             targets,
             {"path": args.prediction.name, "sha256": prediction_hash},
             identity,
+        )
+    finally:
+        prediction.file.close()
+        controls_data.file.close()
+
+
+def score_fast(args) -> None:
+    controls_data = open_controls(args)
+    prediction = ad.read_h5ad(args.prediction, backed="r")
+    try:
+        targets = read_scoring_contract(args)
+        source = RowSource(
+            prediction,
+            np.arange(prediction.n_obs),
+            prediction.obs["target_gene"].astype(str).to_numpy(),
+        )
+        validate_source(source, targets, controls_data.var_names.astype(str).tolist())
+        prediction_hash = sha256(args.prediction)
+        score_source_fast(
+            args,
+            source,
+            targets,
+            {"path": args.prediction.name, "sha256": prediction_hash},
         )
     finally:
         prediction.file.close()
@@ -893,4 +1072,3 @@ def validate_command(args) -> None:
     finally:
         prediction.file.close()
         controls.file.close()
-

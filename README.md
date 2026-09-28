@@ -26,6 +26,17 @@ vcc-h1 validate prediction.h5ad
 vcc-h1 score prediction.h5ad --output results/
 ```
 
+For iteration that does not need prediction-side Wilcoxon DE, run:
+
+```bash
+vcc-h1 score-fast prediction.h5ad --output fast-results/
+```
+
+`score-fast` enforces the same prediction contract and computes PDS plus the
+expression-MSE family from the frozen pseudobulk moments. It writes scaled PDS
+and normalized-MSE components, but deliberately does not report a partial
+`avg_score`.
+
 Setup downloads the original 15.48 GB H1 training object directly from Arc,
 verifies it, and extracts a 537 MB control-only H5AD locally. The repository
 does not redistribute raw or derived single-cell count matrices. Pass an
@@ -57,7 +68,8 @@ After `--remove-source`, the installed benchmark occupies about 575 MB.
 
 The adapter supplies the real H1 controls internally. It reduces pseudobulks
 one target at a time and performs prediction-side CPU DE in 512-gene chunks,
-so it does not materialize a combined count matrix.
+so it does not materialize a combined count matrix. `score-fast` skips that DE
+step entirely.
 
 ## Results
 

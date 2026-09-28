@@ -63,6 +63,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     scoring.add_argument("--de-threads", type=int, default=4)
     _data_argument(scoring)
 
+    scoring_fast = commands.add_parser("score-fast")
+    scoring_fast.add_argument("prediction", type=Path)
+    scoring_fast.add_argument("--output", type=Path, required=True)
+    _data_argument(scoring_fast)
+
     control = commands.add_parser("score-control-baseline")
     control.add_argument("--output", type=Path, required=True)
     control.add_argument("--gene-chunk", type=int, default=512)
@@ -114,6 +119,12 @@ def run(args: argparse.Namespace) -> None:
 
         check(paths)
         score(_score_args(args, paths))
+    elif args.command == "score-fast":
+        from .artifacts import check
+        from .scorer import score_fast
+
+        check(paths)
+        score_fast(_score_args(args, paths))
     elif args.command == "score-control-baseline":
         from .artifacts import check
         from .scorer import score_control_baseline

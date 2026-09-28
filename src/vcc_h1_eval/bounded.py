@@ -85,7 +85,7 @@ def row_totals(source: RowSource) -> np.ndarray:
     return totals
 
 
-def load_reference_statistics(moment_path: Path, de_path: Path):
+def load_reference_statistics(moment_path: Path, de_path: Path | None):
     with np.load(moment_path) as stored:
         perts = stored["perts"].astype(str)
         means = stored["means"].copy()
@@ -98,7 +98,7 @@ def load_reference_statistics(moment_path: Path, de_path: Path):
     return (
         {"bulk_lognorm": (perts, means)},
         {"bulk_lognorm": moments},
-        pl.read_parquet(de_path),
+        pl.read_parquet(de_path) if de_path is not None else None,
     )
 
 

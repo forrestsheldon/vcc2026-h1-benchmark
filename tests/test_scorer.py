@@ -43,6 +43,8 @@ from vcc_h1_eval.scorer import (
     CELL_EVAL2_COMMIT,
     CELLS_PER_TARGET,
     CONTROL,
+    FAST_METRICS,
+    FAST_RAW_METRICS,
     N_CONTROLS,
     N_TARGETS,
     SCORED_METRICS,
@@ -50,13 +52,16 @@ from vcc_h1_eval.scorer import (
     _sample_target_rows,
     assemble_reference,
     augment_prediction,
+    compute_fast_metrics,
     evaluation_config,
+    pad_fast_aggregate,
     reconstruct_reference_cells,
     sample_control_rows,
     scoring_meta,
     tidy_aggregate,
     validate_de_artifact,
     validate_prediction,
+    validate_source,
 )
 
 FULL_DATA = Path(os.environ.get("VCC_H1_DATA", "/nonexistent"))
@@ -259,6 +264,36 @@ def test_prediction_contract_and_real_control_augmentation() -> None:
     assert augmented.var_names.tolist() == genes
 
 
+@pytest.mark.parametrize("failure", ["genes", "labels", "cells", "fractional", "empty"])
+def test_shared_bounded_contract_rejects_fast_and_full_invalidities(failure: str) -> None:
+    targets = ["a", "b"]
+    labels = np.repeat(targets, CELLS_PER_TARGET)
+    genes = ["a", "b", "x"]
+    matrix = np.ones((len(labels), len(genes)), dtype=np.float64)
+    expected_genes = genes
+    if failure == "genes":
+        expected_genes = ["a", "b", "wrong"]
+    elif failure == "labels":
+        labels[0] = CONTROL
+    elif failure == "cells":
+        labels = labels[:-1]
+        matrix = matrix[:-1]
+    elif failure == "fractional":
+        matrix[0, 0] = 0.5
+    elif failure == "empty":
+        matrix[0] = 0
+    data = ad.AnnData(
+        sparse.csr_matrix(matrix),
+        obs=pd.DataFrame({"target_gene": labels}),
+        var=pd.DataFrame(index=genes),
+    )
+    source = RowSource(data, np.arange(data.n_obs), labels)
+
+    with pytest.raises(ValueError):
+        # Both score and score-fast call this exact validator before computing metrics.
+        validate_source(source, targets, expected_genes)
+
+
 def test_control_baseline_is_size_matched_and_deterministic() -> None:
     controls = np.arange(12)
     targets = ["A", "B"]
@@ -454,6 +489,87 @@ def test_bounded_raw_metrics_match_compute_metrics(tmp_path: Path) -> None:
     )
     assert np.allclose(
         bounded["value"], direct["value"], rtol=1e-11, atol=1e-12, equal_nan=True
+    )
+
+
+def test_fast_metrics_match_full_metrics_without_de(tmp_path: Path, monkeypatch) -> None:
+    prediction, real = synthetic_scoring_pair()
+    config = evaluation_config(cache_real=None)
+    full = compute_metrics(prediction, real, config=config).filter(
+        pl.col("metric").is_in(FAST_METRICS)
+    ).sort(["perturbation", "metric"])
+
+    targets = ["A", "B", "C"]
+    pred_mask = prediction.obs["target_gene"].astype(str).ne(CONTROL).to_numpy()
+    pred_source = RowSource(
+        prediction,
+        np.flatnonzero(pred_mask),
+        prediction.obs.loc[pred_mask, "target_gene"].astype(str).to_numpy(),
+    )
+    perts, means, moments = pseudobulk_bulk_lognorm_with_moments(
+        real, "target_gene", bulk_target_sum=config.bulk_target_sum
+    )
+    moment_path = tmp_path / "moments.npz"
+    np.savez(
+        moment_path,
+        perts=perts,
+        means=means,
+        counts=moments.counts,
+        sumsq=moments.sumsq,
+        jk=moments.jk,
+    )
+
+    def fail(*args, **kwargs):
+        raise AssertionError("score-fast reached DE code")
+
+    monkeypatch.setattr("vcc_h1_eval.scorer.compute_de_bounded", fail)
+    monkeypatch.setattr("vcc_h1_eval.scorer.dispatch_de_metrics", fail)
+    fast = compute_fast_metrics(pred_source, targets, config, moment_path).sort(
+        ["perturbation", "metric"]
+    )
+
+    assert fast.select("perturbation", "metric").equals(
+        full.select("perturbation", "metric")
+    )
+    assert np.allclose(fast["value"], full["value"], rtol=1e-11, atol=1e-12)
+    assert set(fast["metric"].unique().to_list()) == set(FAST_RAW_METRICS)
+
+    fast_agg = aggregate_metrics_wide(fast, metrics=list(FAST_METRICS))
+    full_agg = aggregate_metrics_wide(full, metrics=list(FAST_METRICS))
+    assert fast_agg.equals(full_agg)
+
+    all_metrics = metric_output_names(config)
+    baseline_values = {
+        metric: 0.8 if CATALOG[metric].scoring.direction == "lower" else 0.2
+        for metric in all_metrics
+    }
+    user_values = {
+        metric: 0.4 if CATALOG[metric].scoring.direction == "lower" else 0.6
+        for metric in all_metrics
+    }
+    full_baseline = pl.DataFrame(
+        {"statistic": ["mean"], **{metric: [value] for metric, value in baseline_values.items()}}
+    )
+    full_user = pl.DataFrame(
+        {"statistic": ["mean"], **{metric: [value] for metric, value in user_values.items()}}
+    )
+    fast_baseline = full_baseline.select("statistic", *FAST_METRICS)
+    fast_user = full_user.select("statistic", *FAST_METRICS)
+    full_scores = score_metrics(full_user, results_base=full_baseline).filter(
+        pl.col("metric").is_in(["pds_cosine", "expr_mse_unbiased_capped_norm"])
+    )
+    fast_scores = score_metrics(fast_user, results_base=fast_baseline).filter(
+        pl.col("metric").is_in(["pds_cosine", "expr_mse_unbiased_capped_norm"])
+    )
+    assert fast_scores.equals(full_scores)
+
+    padded = pad_fast_aggregate(fast_user, full_baseline)
+    padded_scores = score_metrics(padded, results_base=full_baseline).filter(
+        pl.col("metric").is_in(["pds_cosine", "expr_mse_unbiased_capped_norm"])
+    )
+    assert padded_scores.equals(full_scores)
+    assert padded["de_wilcoxon_lfc_nmae"].equals(
+        full_baseline["de_wilcoxon_lfc_nmae"]
     )
 
 
