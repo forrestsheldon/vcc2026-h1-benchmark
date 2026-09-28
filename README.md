@@ -15,7 +15,7 @@ non-targeting cells. Scoring is pinned to `cell-eval2==0.16.0`, source commit
 Install the tagged GitHub release:
 
 ```bash
-uv tool install git+https://github.com/forrestsheldon/vcc2026-h1-benchmark.git@v0.2.0
+uv tool install git+https://github.com/forrestsheldon/vcc2026-h1-benchmark.git@v0.3.0
 ```
 
 Prepare the benchmark once, then validate and score a prediction:

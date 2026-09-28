@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vcc2026-h1-benchmark"
-version = "0.2.0"
+version = "0.3.0"
 description = "A lightweight VCC 2026 evaluation benchmark on the public H1 training data"
 readme = "README.md"
 license = "MIT"
