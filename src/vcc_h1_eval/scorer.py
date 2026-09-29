@@ -726,14 +726,14 @@ def scoring_meta(args, config: EvalConfig) -> dict:
     }
 
 
-def score_source(
+def compute_results(
     args,
     prediction: RowSource,
     controls: RowSource,
     targets: list[str],
-    prediction_provenance: dict,
     cache_identity: str,
-) -> None:
+) -> tuple[pl.DataFrame, EvalConfig]:
+    """Per-target metric rows for one prediction, with bounded memory."""
     config = replace(
         evaluation_config(cache_real=args.reference_cache),
         num_threads=args.de_threads,
@@ -789,6 +789,19 @@ def score_source(
         rows,
         schema={"perturbation": pl.Utf8, "metric": pl.Utf8, "value": pl.Float64},
     )
+    shutil.rmtree(cache_dir)
+    return results, config
+
+
+def score_source(
+    args,
+    prediction: RowSource,
+    controls: RowSource,
+    targets: list[str],
+    prediction_provenance: dict,
+    cache_identity: str,
+) -> None:
+    results, config = compute_results(args, prediction, controls, targets, cache_identity)
     wide, aggregate = tidy_aggregate(results, config)
     run_meta = scoring_meta(args, config)
     scaled = score_metrics(wide, real_bundle=args.scale_bundle, user_meta=run_meta)
@@ -832,7 +845,6 @@ def score_source(
         "packages": package_provenance(),
     }
     write_json(args.output / "manifest.json", manifest)
-    shutil.rmtree(cache_dir)
     print(scaled)
 
 

@@ -15,6 +15,8 @@ import pandas as pd
 from .controls import build as build_controls
 from .paths import BenchmarkPaths
 
+REGISTRY = "benchmark-v2.json"
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -25,10 +27,10 @@ def sha256(path: Path) -> str:
 
 
 def registry() -> dict:
-    resource = resources.files("vcc_h1_eval").joinpath("benchmark-v1.json")
+    resource = resources.files("vcc_h1_eval").joinpath(REGISTRY)
     if resource.is_file():
         return json.loads(resource.read_text())
-    source = Path(__file__).resolve().parents[2] / "assets" / "benchmark-v1.json"
+    source = Path(__file__).resolve().parents[2] / "assets" / REGISTRY
     return json.loads(source.read_text())
 
 
@@ -125,6 +127,12 @@ def check(paths: BenchmarkPaths) -> dict:
     verify_file(paths.genes, specs["sources"]["genes"])
     verify_file(paths.target_counts, specs["sources"]["target_counts"])
     verify_asset(paths.benchmark_dir)
+    installed = json.loads((paths.benchmark_dir / "asset_manifest.json").read_text())
+    if installed["benchmark_version"] != specs["benchmark_version"]:
+        raise RuntimeError(
+            f"installed benchmark {installed['benchmark_version']} is out of date; this "
+            f"release scores against benchmark {specs['benchmark_version']}. Run `vcc-h1 setup`."
+        )
 
     benchmark = json.loads(paths.benchmark_manifest.read_text())
     controls_manifest = json.loads(paths.controls_manifest.read_text())
@@ -151,6 +159,32 @@ def check(paths: BenchmarkPaths) -> dict:
     }
 
 
+def _controls_current(paths: BenchmarkPaths, specs: dict) -> bool:
+    """True when the extracted controls come from the registry's H1 and verify."""
+    if not (paths.controls.exists() and paths.controls_manifest.exists()):
+        return False
+    try:
+        manifest = json.loads(paths.controls_manifest.read_text())
+        if manifest["source"]["sha256"] != specs["sources"]["h1"]["sha256"]:
+            return False
+        verify_file(paths.controls, manifest["artifact"])
+    except (KeyError, ValueError):
+        return False
+    return True
+
+
+def _install_registry_asset(paths: BenchmarkPaths, specs: dict, asset_path: Path | None) -> None:
+    if asset_path is None:
+        asset_spec = specs["asset"]
+        if asset_spec["sha256"] == "PENDING":
+            raise RuntimeError("benchmark release asset has not been published")
+        archive = download(asset_spec, paths.root / asset_spec["filename"])
+    else:
+        archive = asset_path.resolve()
+        verify_file(archive, {"sha256": specs["asset"]["sha256"]})
+    install_asset(paths, archive)
+
+
 def setup(
     paths: BenchmarkPaths,
     *,
@@ -165,21 +199,24 @@ def setup(
     download(specs["sources"]["target_counts"], paths.target_counts)
 
     managed_h1 = h1 is None
+    if managed_h1 and not paths.h1.exists() and _controls_current(paths, specs):
+        # Upgrade in place: the controls were extracted from this exact H1 and verify, so only
+        # the (checksummed) benchmark asset changes. No 15 GB re-download.
+        print("Verified controls found; installing the benchmark asset only", flush=True)
+        _install_registry_asset(paths, specs, asset_path)
+        result = check(paths)
+        previous = paths.installation_manifest
+        installation = json.loads(previous.read_text()) if previous.exists() else {}
+        installation.update({**result, "data_dir": str(paths.root)})
+        previous.write_text(json.dumps(installation, indent=2, sort_keys=True) + "\n")
+        return installation
     if managed_h1:
         source = download(specs["sources"]["h1"], paths.h1)
     else:
         source = h1.resolve()
         verify_file(source, specs["sources"]["h1"])
 
-    if asset_path is None:
-        asset_spec = specs["asset"]
-        if asset_spec["sha256"] == "PENDING":
-            raise RuntimeError("benchmark release asset has not been published")
-        archive = download(asset_spec, paths.root / asset_spec["filename"])
-    else:
-        archive = asset_path.resolve()
-        verify_file(archive, {"sha256": specs["asset"]["sha256"]})
-    install_asset(paths, archive)
+    _install_registry_asset(paths, specs, asset_path)
 
     from .scorer import reconstruct_reference_cells
 
@@ -192,16 +229,7 @@ def setup(
     if not expected.equals(published):
         raise ValueError("published reference cells do not reconstruct from H1")
 
-    rebuild = True
-    if paths.controls.exists() and paths.controls_manifest.exists():
-        try:
-            manifest = json.loads(paths.controls_manifest.read_text())
-            rebuild = manifest["source"]["sha256"] != specs["sources"]["h1"]["sha256"]
-            if not rebuild:
-                verify_file(paths.controls, manifest["artifact"])
-        except (KeyError, ValueError):
-            rebuild = True
-    if rebuild:
+    if not _controls_current(paths, specs):
         build_controls(source, paths.controls, paths.controls_manifest, block_rows=512)
 
     result = check(paths)

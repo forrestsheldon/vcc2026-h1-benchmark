@@ -67,7 +67,7 @@ def build(source_root: Path, output: Path) -> str:
             files[f"scale/{path.name}"] = path.read_bytes()
 
     asset_manifest = {
-        "benchmark_version": "v1",
+        "benchmark_version": "v2",
         "files": {name: sha256_bytes(value) for name, value in sorted(files.items())},
     }
     files["asset_manifest.json"] = (

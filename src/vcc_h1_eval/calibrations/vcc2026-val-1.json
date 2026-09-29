@@ -25,7 +25,7 @@
    "inferred": true
   },
   "expr_mse_unbiased_capped_norm": {
-   "baseline": 0.9679450509009423,
+   "baseline": 1.002195816835784,
    "inferred": false
   },
   "de_wilcoxon_lfc_nmae": {
@@ -46,12 +46,12 @@
   }
  },
  "h1_baselines": {
-  "pds_cosine": 0.506793650793651,
-  "expr_mse_unbiased_capped_norm": 0.9679450509009423,
-  "de_wilcoxon_lfc_nmae": 0.9574776944645199,
-  "de_wilcoxon_direction_fidelity_yield_raw": 0.06695441194874018,
-  "de_wilcoxon_direction_reach_raw": 0.0822309021498574,
-  "de_wilcoxon_sig_jaccard": 0.0021103594232287147
+  "pds_cosine": 0.5,
+  "expr_mse_unbiased_capped_norm": 1.002195816835784,
+  "de_wilcoxon_lfc_nmae": 1.0025180645158942,
+  "de_wilcoxon_direction_fidelity_yield_raw": 0.49833132282063813,
+  "de_wilcoxon_direction_reach_raw": 0.03424260313125604,
+  "de_wilcoxon_sig_jaccard": 0.1275367872851184
  },
  "h1_anchors": {
   "pds_cosine": 0.9779936507936509,

@@ -62,6 +62,7 @@ from vcc_h1_eval.scorer import (
     validate_de_artifact,
     validate_prediction,
     validate_source,
+    write_json,
 )
 
 FULL_DATA = Path(os.environ.get("VCC_H1_DATA", "/nonexistent"))
@@ -710,7 +711,7 @@ def test_assembled_anchor_round_trips_through_arc_cache(
         )
         frame_path, meta_path = scale_builder._split_paths(split_index)
         scale_builder._atomic_parquet(frame, frame_path)
-        scale_builder.write_json(
+        write_json(
             meta_path,
             {
                 "identity": "test",

@@ -19,11 +19,16 @@ preserving target order from `pert_counts_Training.csv`.
 
 ## Derived release asset
 
-`vcc2026-h1-benchmark-v1.zip` contains no single-cell count matrix. It contains
+`vcc2026-h1-benchmark-v2.zip` contains no single-cell count matrix. It contains
 the fixed reference-cell list, reference DE and rank tables, pseudobulk moments,
-the generic-response baseline, the five-split replicate anchor, and checksummed
-manifests. Its SHA-256 is
-`69d85faff91516d558c553711f494176d90b49b301ebd3a89695ca78f87a12fa`.
+the control-mean baseline aggregates, the five-split replicate anchor, and
+checksummed manifests. Its SHA-256 is
+`4b365064464c9c985aa2c08500aa9d3a700c83bc6ebd3a7e8675ea6083e3a800`.
+
+Benchmark v2 (package 0.4.0) differs from v1 only in `scale/baseline_agg.csv`
+and `scale/baseline_meta.json`: the baseline is the guide-balanced control mean
+(31 guides) emitted as identical fractional cells, replacing the generic-response
+baseline. The reference cells, DE tables and anchor are unchanged.
 
 The control-only count object is reconstructed locally from Arc's source. It
 contains all 38,176 cells labelled `non-targeting`, the complete H1 gene axis,

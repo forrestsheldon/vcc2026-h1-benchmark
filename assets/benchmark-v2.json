@@ -1,10 +1,11 @@
 {
   "asset": {
-    "filename": "vcc2026-h1-benchmark-v1.zip",
-    "sha256": "69d85faff91516d558c553711f494176d90b49b301ebd3a89695ca78f87a12fa",
-    "url": "https://github.com/forrestsheldon/vcc2026-h1-benchmark/releases/download/v0.2.0/vcc2026-h1-benchmark-v1.zip"
+    "filename": "vcc2026-h1-benchmark-v2.zip",
+    "sha256": "4b365064464c9c985aa2c08500aa9d3a700c83bc6ebd3a7e8675ea6083e3a800",
+    "url": "https://github.com/forrestsheldon/vcc2026-h1-benchmark/releases/download/v0.4.0/vcc2026-h1-benchmark-v2.zip",
+    "bytes": 27511484
   },
-  "benchmark_version": "v1",
+  "benchmark_version": "v2",
   "sources": {
     "genes": {
       "bytes": 116023,

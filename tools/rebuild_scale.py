@@ -14,7 +14,7 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 import polars as pl
-from cell_eval2 import build_generic_baseline, compute_metrics
+from cell_eval2 import compute_metrics
 from cell_eval2.anchor import (
     _ANCHOR_SCHEMA,
     _SPLITS_SCHEMA,
@@ -46,7 +46,6 @@ from vcc_h1_eval.scorer import (
     evaluation_config,
     read_reference,
     sha256,
-    write_json,
 )
 
 ROOT = Path.cwd()
@@ -427,18 +426,33 @@ def assemble_anchor(real: ad.AnnData, config, identity: str):
     return anchor, splits, meta
 
 
-def validate_baseline(real: ad.AnnData, config) -> Path:
-    baseline_path = SCALE_BUILD_DIR / "generic_baseline.h5ad"
-    meta_path = SCALE_BUILD_DIR / "baseline_checkpoint.json"
-    if not baseline_path.exists() or not meta_path.exists():
-        print("Building Arc generic-response baseline", flush=True)
-        result = build_generic_baseline(real, config=config, save_pred=baseline_path)
-        write_json(meta_path, result.meta)
+def validate_baseline(real: ad.AnnData, config, h1_path: Path) -> Path:
+    """The 2026 zero point: the guide-balanced control mean, tiled as identical cells.
 
-    meta = json.loads(meta_path.read_text())
-    expected_digest = config_digest(config, comparator="bulk_lognorm")
-    if meta.get("config_digest") != expected_digest:
-        raise ValueError("baseline configuration does not match this build")
+    Needs the dense tiled arm in memory (~8 GB). On a smaller machine, publish with any arm
+    and then replace the baseline leg with `tools/build_control_mean_baseline.py`, which
+    scores the same arm with the bounded-memory scorer.
+    """
+    from scipy import sparse
+
+    baseline_path = SCALE_BUILD_DIR / "control_mean_baseline.h5ad"
+    if not baseline_path.exists():
+        print("Building the tiled control-mean baseline", flush=True)
+        labels = real.obs[config.pert_col].astype(str).to_numpy()
+        is_control = labels == config.control
+        controls = real[is_control]
+        source = ad.read_h5ad(h1_path, backed="r")
+        guides = source.obs["guide_id"].astype(str).reindex(controls.obs_names).to_numpy()
+        source.file.close()
+        profile = np.mean(
+            [np.asarray(controls.X[guides == g].mean(axis=0)).ravel() for g in np.unique(guides)],
+            axis=0,
+        )
+        tiled = sparse.csr_matrix(np.broadcast_to(profile, (int((~is_control).sum()), profile.size)))
+        X = sparse.lil_matrix(real.shape, dtype=np.float64)
+        X[np.flatnonzero(~is_control)] = tiled
+        X[np.flatnonzero(is_control)] = sparse.csr_matrix(controls.X)
+        ad.AnnData(X=X.tocsr(), obs=real.obs.copy(), var=real.var.copy()).write_h5ad(baseline_path)
     baseline = ad.read_h5ad(baseline_path, backed="r")
     try:
         if baseline.shape != real.shape:
@@ -485,7 +499,7 @@ def publish_bundle(args, real: ad.AnnData, config, baseline_path: Path) -> None:
 def orchestrate(args) -> None:
     real, _ = read_reference(args)
     config = build_config(args.reference_cache, args.de_threads)
-    baseline_path = validate_baseline(real, config)
+    baseline_path = validate_baseline(real, config, args.h1)
     identity = build_identity(args.manifest, config)
 
     common = [
